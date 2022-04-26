@@ -30,22 +30,22 @@ struct iphdr {
 } __attribute__((packed));
 
 
-BPF_MAP_DEF(matches) = {
+BPF_MAP_DEF(fwMap) = {
     .map_type = BPF_MAP_TYPE_PERCPU_ARRAY,
     .key_size = sizeof(__u32),
     .value_size = sizeof(__u64),
     .max_entries = MAX_RULES,
 };
-BPF_MAP_ADD(matches);
+BPF_MAP_ADD(fwMap);
 
 
-BPF_MAP_DEF(blacklist) = {
+BPF_MAP_DEF(blacklistMap) = {
     .map_type = BPF_MAP_TYPE_LPM_TRIE,
     .key_size = sizeof(__u64),
     .value_size = sizeof(__u32),
     .max_entries = MAX_RULES,
 };
-BPF_MAP_ADD(blacklist);
+BPF_MAP_ADD(blacklistMap);
 
 // XDP program //
 SEC("xdp")
@@ -81,11 +81,11 @@ int firewall(struct xdp_md *ctx) {
   key.saddr = ip->saddr;
 
   // Lookup SRC IP in blacklisted IPs
-  __u64 *rule_idx = bpf_map_lookup_elem(&blacklist, &key);
+  __u64 *rule_idx = bpf_map_lookup_elem(&blacklistMap, &key);
   if (rule_idx) {
     // Matched, increase match counter for matched "rule"
     __u32 index = *(__u32*)rule_idx;  // make verifier happy
-    __u64 *counter = bpf_map_lookup_elem(&matches, &index);
+    __u64 *counter = bpf_map_lookup_elem(&fwMap, &index);
     if (counter) {
       (*counter)++;
     }

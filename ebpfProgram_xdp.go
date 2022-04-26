@@ -71,7 +71,6 @@ func (t XdpResult) String() string {
 // XDP eBPF program (implements Program interface)
 type xdpProgram struct {
 	BaseProgram
-
 	// Interface name and attach mode
 	ifname string
 	mode   XdpAttachMode
@@ -116,6 +115,7 @@ func (p *xdpProgram) Attach(data interface{}) error {
 	}
 
 	// Attach program
+	// 将ebpf程序，map现场，并于对应网卡绑定，此时程序就是脱缰的野马(受控范围)，在下一次触发时执行ebpf
 	if err := netlink.LinkSetXdpFdWithFlags(link, p.fd, int(attachMode)); err != nil {
 		return fmt.Errorf("LinkSetXdpFd() failed: %v", err)
 	}

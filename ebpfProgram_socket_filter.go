@@ -64,7 +64,6 @@ func (t SocketFilterAttachType) String() string {
 
 type socketFilterProgram struct {
 	BaseProgram
-
 	sockFd int
 }
 

@@ -661,6 +661,7 @@ func (m *EbpfMap) updateImpl(ikey interface{}, ivalue interface{}, op int) error
 
 	var logBuf [errCodeBufferSize]byte
 
+	// 通过cgo调用c函数，c函数通过syscall实现map更新
 	res := int(C.ebpf_map_update_elem(
 		C.__u32(m.fd),
 		unsafe.Pointer(&key[0]),

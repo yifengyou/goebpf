@@ -136,6 +136,7 @@ func (prog *BaseProgram) Load() error {
 	defer C.free(unsafe.Pointer(license))
 
 	// Load eBPF program
+	// 使用cgo将程序加载到内核
 	res := int(C.ebpf_prog_load(
 		name,
 		C.__u32(prog.GetType()),

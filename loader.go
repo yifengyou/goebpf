@@ -18,12 +18,12 @@ import (
 )
 
 const (
-	// MapSectionName is name of ELF section for maps
+	// MapSectionName is name of ELF section for maps maps所在节名称
 	MapSectionName = "maps"
-	// LicenseSectionName is name of ELF section for license info
+	// LicenseSectionName is name of ELF section for license info 协议名称所在节
 	LicenseSectionName = "license"
 
-	// Length of BPF instruction
+	// Length of BPF instruction bpf指令长度，当前固定为8字节
 	bpfInstructionLen = 8
 	// Other BPF constants that are not present in "golang.org/x/sys/unix"
 	bpfDw          = 0x18 // ld/ldx double word
@@ -43,18 +43,18 @@ var sectionNameToProgramType = map[string]programCreator{
 }
 
 // BPF instruction //
-// Must be in sync with linux/bpf.h:
+// Must be in sync with linux/bpf.h: 必须保持一致
 // 	struct bpf_insn {
-// 		__u8	code;		/* opcode */
-// 		__u8	dst_reg:4;	/* dest register */
-// 		__u8	src_reg:4;	/* source register */
-// 		__s16	off;		/* signed offset */
-// 		__s32	imm;		/* signed immediate constant */
+// 		__u8	code;		/* opcode 操作码 8bit */
+// 		__u8	dst_reg:4;	/* dest register 目标操作数寄存器 4bit */
+// 		__u8	src_reg:4;	/* source register 源操作数寄存器 4bit */
+// 		__s16	off;		/* signed offset 有符号偏移量 16bit */
+// 		__s32	imm;		/* signed immediate constant 有符号立即数常量 32bit */
 // 	};
 type bpfInstruction struct {
 	code   uint8  // Opcode
-	dstReg uint8  // 4 bits: destination register, r0-r10
-	srcReg uint8  // 4 bits: source register, r0-r10
+	dstReg uint8  // 4 bits: destination register, r0-r10 只使用4比特
+	srcReg uint8  // 4 bits: source register, r0-r10 只使用4比特
 	offset uint16 // Signed offset
 	imm    uint32 // Immediate constant
 }
@@ -263,6 +263,7 @@ func loadAndCreateMaps(elfFile *elf.File) (map[string]Map, error) {
 			}
 		}
 		// Create map in kernel / add to results
+		// 通过系统调用实现map创建
 		err := item.Create()
 		if err != nil {
 			return nil, fmt.Errorf("map.Create() failed: %v", err)
@@ -409,6 +410,7 @@ func (s *ebpfSystem) Load(r io.ReaderAt) error {
 	}
 
 	// Load eBPF maps
+	// 通过系统调用创建map并返回句柄
 	s.Maps, err = loadAndCreateMaps(elfFile)
 	if err != nil {
 		return fmt.Errorf("loadAndCreateMaps() failed: %v", err)
