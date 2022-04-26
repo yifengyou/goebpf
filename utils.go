@@ -161,6 +161,7 @@ type ProgramInfo struct {
 }
 
 // NullTerminatedStringToString is helper to convert null terminated string to GO string
+// byte切片，遍历，截断0值
 func NullTerminatedStringToString(val []byte) string {
 	// Calculate null terminated string len
 	slen := len(val)

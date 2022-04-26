@@ -70,7 +70,7 @@ func main() {
 
 func LoadProgram(filename string) (*Program, error) {
 
-	// create system
+	// create system 实例化EbpfSystem结构
 	bpf := goebpf.NewDefaultEbpfSystem()
 
 	// load compiled ebpf elf file

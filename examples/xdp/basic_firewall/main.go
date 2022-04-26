@@ -18,13 +18,46 @@ import (
 
 type ipAddressList []string
 
+// Implements flag.Value
+func (i *ipAddressList) String() string {
+	return fmt.Sprintf("%+v", *i)
+}
+
+// Implements flag.Value
+func (i *ipAddressList) Set(value string) error {
+	if len(*i) == 16 {
+		return errors.New("Up to 16 IPv4 addresses supported")
+	}
+	// Validate that value is correct IPv4 address
+	if !strings.Contains(value, "/") {
+		value += "/32"
+	}
+	if strings.Contains(value, ":") {
+		return fmt.Errorf("%s is not an IPv4 address", value)
+	}
+	_, _, err := net.ParseCIDR(value)
+	if err != nil {
+		return err
+	}
+	// Valid, add to the list
+	*i = append(*i, value)
+	return nil
+}
+
+
+// 指定网卡
 var iface = flag.String("iface", "", "Interface to bind XDP program to")
+// 指定ebpf elf程序路径
 var elf = flag.String("elf", "ebpf_prog/xdp_fw.elf", "clang/llvm compiled binary file")
+// 待屏蔽的ip列表
 var ipList ipAddressList
 
 func main() {
+	// 内置flag库，使用指针
 	flag.Var(&ipList, "drop", "IPv4 CIDR to DROP traffic from, repeatable")
 	flag.Parse()
+
+
 	if *iface == "" {
 		fatalError("-iface is required.")
 	}
@@ -131,28 +164,3 @@ func printBpfInfo(bpf goebpf.System) {
 	fmt.Println()
 }
 
-// Implements flag.Value
-func (i *ipAddressList) String() string {
-	return fmt.Sprintf("%+v", *i)
-}
-
-// Implements flag.Value
-func (i *ipAddressList) Set(value string) error {
-	if len(*i) == 16 {
-		return errors.New("Up to 16 IPv4 addresses supported")
-	}
-	// Validate that value is correct IPv4 address
-	if !strings.Contains(value, "/") {
-		value += "/32"
-	}
-	if strings.Contains(value, ":") {
-		return fmt.Errorf("%s is not an IPv4 address", value)
-	}
-	_, _, err := net.ParseCIDR(value)
-	if err != nil {
-		return err
-	}
-	// Valid, add to the list
-	*i = append(*i, value)
-	return nil
-}
