@@ -16,6 +16,7 @@ type ebpfSystem struct {
 
 // NewDefaultEbpfSystem creates default eBPF system
 func NewDefaultEbpfSystem() System {
+	// 实例化，待填充内容
 	return &ebpfSystem{
 		Programs: make(map[string]Program),
 		Maps:     make(map[string]Map),

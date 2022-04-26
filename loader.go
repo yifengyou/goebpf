@@ -151,6 +151,7 @@ func readRelocations(elfFile *elf.File, section *elf.Section) ([]relocationItem,
 
 func loadAndCreateMaps(elfFile *elf.File) (map[string]Map, error) {
 	// Read ELF symbols
+	// 获取ELF符号表
 	symbols, err := elfFile.Symbols()
 	if err != nil {
 		return nil, fmt.Errorf("elf.Symbols() failed: %v", err)
@@ -159,6 +160,8 @@ func loadAndCreateMaps(elfFile *elf.File) (map[string]Map, error) {
 	// Lookup for "maps" ELF section
 	var mapSection *elf.Section
 	var mapSectionIndex int
+	// 遍历所有节，检索名称为'maps'的节
+	// MapSectionName = "maps"
 	for index, section := range elfFile.Sections {
 		if section.Name == MapSectionName {
 			mapSection = section
@@ -171,13 +174,18 @@ func loadAndCreateMaps(elfFile *elf.File) (map[string]Map, error) {
 	}
 
 	// Read and parse map definitions from designated ELF section
+	// 解析'maps'节数据
+	// EbpfMap 是每个map的描述符
 	mapsByIndex := []*EbpfMap{}
+	// maps 节是有规则的，每个map固定大小
 	data, err := mapSection.Data()
 	if err != nil {
 		return nil, fmt.Errorf("Failed to read '%s' section data: %v", mapSection.Name, err)
 	}
+	// 根据固定大小解析maps节
 	for offset := 0; offset < len(data); offset += mapDefinitionSize {
-		m, err := newMapFromElfSection(data[offset:])
+		// 从头开始每 mapDefinitionSize 大小，解析成EbpfMap结构
+		singleMap, err := newMapFromElfSection(data[offset:])
 		if err != nil {
 			return nil, err
 		}
@@ -186,14 +194,14 @@ func loadAndCreateMaps(elfFile *elf.File) (map[string]Map, error) {
 		// is offset in section's data
 		for _, sym := range symbols {
 			if int(sym.Section) == mapSectionIndex && int(sym.Value) == offset {
-				m.Name = sym.Name
+				singleMap.Name = sym.Name
 				break
 			}
 		}
-		if m.Name == "" {
+		if singleMap.Name == "" {
 			return nil, fmt.Errorf("Unable to get map name (section offset=%d)", offset)
 		}
-		mapsByIndex = append(mapsByIndex, m)
+		mapsByIndex = append(mapsByIndex, singleMap)
 	}
 
 	// Process ELF relocations (RELO) - in order to read C strings. Given simple map definition:
@@ -392,18 +400,21 @@ func loadPrograms(elfFile *elf.File, maps map[string]Map) (map[string]Program, e
 
 // LoadElf reads ELF file compiled by clang + llvm for target bpf
 func (s *ebpfSystem) LoadElf(path string) error {
+	// 打开ELF文件句柄
 	f, err := os.Open(path)
 	if err != nil {
 		return err
 	}
 	defer f.Close()
-
+	// 关键点
 	return s.Load(f)
 }
 
 // Load reads ELF file compiled by clang + llvm for target bpf
 func (s *ebpfSystem) Load(r io.ReaderAt) error {
-	// Read ELF headers
+	// Read ELF headers 使用内置库elf解析
+	// 读取ELF头、program头、section头信息
+	// func NewFile(r io.ReaderAt) (*File, error)
 	elfFile, err := elf.NewFile(r)
 	if err != nil {
 		return err
