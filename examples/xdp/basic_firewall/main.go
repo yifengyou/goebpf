@@ -7,24 +7,35 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"github.com/dropbox/goebpf"
 	"net"
 	"os"
 	"os/signal"
 	"strings"
 	"time"
-
-	"github.com/dropbox/goebpf"
 )
 
 // 黑名单ip列表
 type ipAddressList []string
 
 // Implements flag.Value
+// *ipAddressList does not implement flag.Value (missing String method)
+// 使用flag.Var库，需要实现对应方法
+// func Var(value Value, name string, usage string)
+// type Value interface {
+//	String() string
+//	Set(string) error
+//}
 func (i *ipAddressList) String() string {
+	// “%+v”会以字段键值对的形式key-value格式打印，“%v”只会打印字段值value信息 %#v最详细
+	// &{file:0xc00012a780}  %+v
+	// &{0xc00012a780} %v
+	// &os.File{file:(*os.file)(0xc00012a780)} %#v
 	return fmt.Sprintf("%+v", *i)
 }
 
 // Implements flag.Value
+// *ipAddressList does not implement flag.Value (missing Set method)
 func (i *ipAddressList) Set(value string) error {
 	// 仅支持16个地址，在elf中map定义了空间是 #define MAX_RULES   16
 	if len(*i) == 16 {
@@ -44,6 +55,7 @@ func (i *ipAddressList) Set(value string) error {
 	// 如果ip地址能够被正确解析，则表示ip地址ok，否则返回错误
 	_, _, err := net.ParseCIDR(value)
 	if err != nil {
+		// invalid value "10000.10000" for flag -drop: invalid CIDR address: 10000.10000/32
 		return err
 	}
 	// Valid, add to the list
@@ -51,11 +63,12 @@ func (i *ipAddressList) Set(value string) error {
 	return nil
 }
 
-
 // 指定网卡
-var iface = flag.String("iface", "", "Interface to bind XDP program to")
+var iface = flag.String("iface", "ens32", "Interface to bind XDP program to")
+
 // 指定ebpf elf程序路径
 var elf = flag.String("elf", "ebpf_prog/xdp_fw.elf", "clang/llvm compiled binary file")
+
 // 待屏蔽的ip列表
 var ipListToBlock ipAddressList
 
@@ -63,6 +76,7 @@ func main() {
 	// 内置flag库，使用指针。可重复
 	flag.Var(&ipListToBlock, "drop", "IPv4 CIDR to DROP traffic from, repeatable")
 	flag.Parse()
+	goebpf.Debug("Enable Debug")
 	// 目标网卡
 	if *iface == "" {
 		fatalError("-iface is required.")
@@ -77,7 +91,7 @@ func main() {
 	// 从ELF加载ebpf程序，so，ELF基础知识必须扎实
 	// 填充System对象，解析一切可用数据。后续对ebpf的访问都通过bpf句柄
 	// 通过系统调用完成map创建
-	err := bpf.LoadElf(*elf)
+	err := bpf.LoadElf(*elf) // 关键函数
 	if err != nil {
 		fatalError("LoadElf() failed: %v", err)
 	}
@@ -201,8 +215,6 @@ func printBpfInfo(bpf goebpf.System) {
 		fmt.Printf("\t%s: %v, size %d, license \"%s\"\n",
 			prog.GetName(), prog.GetType(), prog.GetSize(), prog.GetLicense(),
 		)
-
 	}
 	fmt.Println()
 }
-

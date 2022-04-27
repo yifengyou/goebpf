@@ -401,6 +401,8 @@ func loadPrograms(elfFile *elf.File, maps map[string]Map) (map[string]Program, e
 // LoadElf reads ELF file compiled by clang + llvm for target bpf
 func (s *ebpfSystem) LoadElf(path string) error {
 	// 打开ELF文件句柄
+	// func Open(name string) (*File, error)
+	// 默认权限 O_RDONLY ，若文件不存不会创建
 	f, err := os.Open(path)
 	if err != nil {
 		return err
@@ -411,6 +413,7 @@ func (s *ebpfSystem) LoadElf(path string) error {
 }
 
 // Load reads ELF file compiled by clang + llvm for target bpf
+// 加载ELF程序
 func (s *ebpfSystem) Load(r io.ReaderAt) error {
 	// Read ELF headers 使用内置库elf解析
 	// 读取ELF头、program头、section头信息

@@ -15,6 +15,7 @@ type ebpfSystem struct {
 }
 
 // NewDefaultEbpfSystem creates default eBPF system
+// 返回接口
 func NewDefaultEbpfSystem() System {
 	// 实例化，待填充内容
 	return &ebpfSystem{
