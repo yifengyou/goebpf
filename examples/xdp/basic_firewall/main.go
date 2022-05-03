@@ -178,18 +178,19 @@ func main() {
 	// Print stat every second / exit on CTRL+C
 	// func NewTicker(d Duration) *Ticker
 	ticker := time.NewTicker(1 * time.Second)
+
+	fmt.Println("IP                 DROPs")
+
 	for {
 		select {
 		case <-ticker.C:
-			fmt.Println("IP                 DROPs")
 			for i := 0; i < len(ipListToBlock); i++ {
 				value, err := fwMap.LookupInt(i)
 				if err != nil {
 					fatalError("LookupInt failed: %v", err)
 				}
-				fmt.Printf("%18s    %d\n", ipListToBlock[i], value)
+				fmt.Printf("%-18s %-d\n", ipListToBlock[i], value)
 			}
-			fmt.Println()
 		case <-ctrlC:
 			// 程序退出会自动清理ebpf运行所需的map、program
 			fmt.Println("\nDetaching program and exit")

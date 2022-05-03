@@ -11,7 +11,7 @@ const (
 // System implementation
 type ebpfSystem struct {
 	Programs map[string]Program // eBPF programs by name
-	Maps     map[string]Map     // eBPF maps defined by Progs by name
+	Maps     map[string]Map     // eBPF maps defined by Progs by name 名称到map描述符的映射关系
 }
 
 // NewDefaultEbpfSystem creates default eBPF system

@@ -48,6 +48,7 @@ enum bpf_cmd {
 };
 
 // Max length of eBPF object name
+// U是表示无符号类型的数据，长度不超过16个字符
 #define BPF_OBJ_NAME_LEN 16U
 
 // Length of eBPF program tag size

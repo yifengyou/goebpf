@@ -371,7 +371,7 @@ func GetNumOfPossibleCpus() (int, error) {
 	// https://elixir.bootlin.com/linux/latest/source/tools/testing/selftests/bpf/bpf_util.h#L10
 	// P.S. runtime.NumCPU() cannot be used since it returns number of logical CPUs
 	var err error
-
+	// 只执行一次
 	getPossibleCpusOnce.Do(func() {
 		var data []byte
 		data, err = ioutil.ReadFile("/sys/devices/system/cpu/possible")

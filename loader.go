@@ -151,7 +151,7 @@ func readRelocations(elfFile *elf.File, section *elf.Section) ([]relocationItem,
 
 func loadAndCreateMaps(elfFile *elf.File) (map[string]Map, error) {
 	// Read ELF symbols
-	// 获取ELF符号表
+	// 获取ELF符号表 SHT_SYMTAB
 	symbols, err := elfFile.Symbols()
 	if err != nil {
 		return nil, fmt.Errorf("elf.Symbols() failed: %v", err)
@@ -169,13 +169,14 @@ func loadAndCreateMaps(elfFile *elf.File) (map[string]Map, error) {
 		}
 	}
 	if mapSection == nil {
+		// 可以存在么有map的ebpf程序
 		// eBPF programs may live without maps - not an error
 		return map[string]Map{}, nil
 	}
 
 	// Read and parse map definitions from designated ELF section
 	// 解析'maps'节数据
-	// EbpfMap 是每个map的描述符
+	// EbpfMap 是每个map的描述符，这里就需要从elf maps节中提取数据构造
 	mapsByIndex := []*EbpfMap{}
 	// maps 节是有规则的，每个map固定大小
 	data, err := mapSection.Data()
@@ -189,6 +190,7 @@ func loadAndCreateMaps(elfFile *elf.File) (map[string]Map, error) {
 		if err != nil {
 			return nil, err
 		}
+		// 下面是填充名称，elf中Name是数值，间接通过符号表获取string，这里在构造描述符时候直接转换了
 		// Retrieve map name by looking up symbols table:
 		// Each symbol contains section index and arbitrary value which for our case
 		// is offset in section's data
@@ -198,12 +200,14 @@ func loadAndCreateMaps(elfFile *elf.File) (map[string]Map, error) {
 				break
 			}
 		}
+		// sanity check，如果字符为空，则报错
 		if singleMap.Name == "" {
 			return nil, fmt.Errorf("Unable to get map name (section offset=%d)", offset)
 		}
 		mapsByIndex = append(mapsByIndex, singleMap)
 	}
 
+	// 处理重定位问题 如果定义了 const char *persistent_path; 则会用到这里
 	// Process ELF relocations (RELO) - in order to read C strings. Given simple map definition:
 	// BPF_MAP_DEF(progs) = {
 	// 		.map_type = BPF_MAP_TYPE_PROG_ARRAY,
@@ -221,9 +225,14 @@ func loadAndCreateMaps(elfFile *elf.File) (map[string]Map, error) {
 	for _, reloSection := range elfFile.Sections {
 		// Skip unwanted sections
 		if reloSection.Type != elf.SHT_REL || int(reloSection.Info) != mapSectionIndex {
+			Debug("skip parse relocations")
 			continue
 		}
+		fmt.Println("WARNNING，parse relocations")
 		relocations, err := readRelocations(elfFile, reloSection)
+		for index, item := range relocations {
+			Debug("[%d] %x", index, item)
+		}
 		if err != nil {
 			return nil, fmt.Errorf("readRelocations() failed: %v", err)
 		}
@@ -260,9 +269,12 @@ func loadAndCreateMaps(elfFile *elf.File) (map[string]Map, error) {
 	}
 
 	// Create maps / add to result map
+	// 这里Map是接口，EbpfMap是接口实例
+	// 此处创建一个map名称->map描述符的映射关系，方便后续访问
+	// 栈逃逸
 	result := map[string]Map{}
 	for _, item := range mapsByIndex {
-		// Map of maps use case
+		// Map of maps use case， Only for array/hash of maps
 		if item.InnerMapName != "" {
 			if innerMap, ok := result[item.InnerMapName]; ok {
 				item.InnerMapFd = innerMap.GetFd()
@@ -418,6 +430,7 @@ func (s *ebpfSystem) Load(r io.ReaderAt) error {
 	// Read ELF headers 使用内置库elf解析
 	// 读取ELF头、program头、section头信息
 	// func NewFile(r io.ReaderAt) (*File, error)
+	Debug("Create elf file handler")
 	elfFile, err := elf.NewFile(r)
 	if err != nil {
 		return err
@@ -425,12 +438,14 @@ func (s *ebpfSystem) Load(r io.ReaderAt) error {
 
 	// Load eBPF maps
 	// 通过系统调用创建map并返回句柄
+	Debug("load and create maps")
 	s.Maps, err = loadAndCreateMaps(elfFile)
 	if err != nil {
 		return fmt.Errorf("loadAndCreateMaps() failed: %v", err)
 	}
 
 	// Load eBPF programs
+	Debug("load programs")
 	s.Programs, err = loadPrograms(elfFile, s.Maps)
 	if err != nil {
 		return fmt.Errorf("loadPrograms() failed: %v", err)

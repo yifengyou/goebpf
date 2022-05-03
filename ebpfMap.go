@@ -14,6 +14,7 @@ package goebpf
 
 // Mac has syscall() deprecated and this produces some noise during package install.
 // Wrap all syscalls into macro.
+// #define __NR_bpf 515
 #ifdef __linux__
 #define SYSCALL_BPF(command)		\
 	syscall(__NR_bpf, command, &attr, sizeof(attr));
@@ -38,7 +39,7 @@ static int ebpf_map_create(const char *name, __u32 map_type, __u32 key_size, __u
 	attr.map_flags = flags;
 	attr.inner_map_fd = inner_fd;
 	strncpy((char*)&attr.map_name, name, BPF_OBJ_NAME_LEN - 1);
-
+	// attr局部变量包在宏中
 	int res = SYSCALL_BPF(BPF_MAP_CREATE);
 	strncpy(log_buf, strerror(errno), log_size);
 	return res;
@@ -311,7 +312,20 @@ func newMapFromElfSection(data []byte) (*EbpfMap, error) {
 	if len(data) < mapDefinitionSize {
 		return nil, errors.New("Invalid binary representation of BPF map")
 	}
-
+	//type EbpfMap struct {
+	//	fd int
+	//	Name       string
+	//	Type       MapType
+	//	KeySize    int
+	//	ValueSize  int
+	//	MaxEntries int
+	//	Flags      int
+	//	InnerMapName string
+	//	InnerMapFd   int
+	//	PersistentPath string
+	//	valueRealSize int
+	//}
+	// 不包括fd/Name/InnerMapName/InnerMapFd/PersistentPath/valueRealSize字段
 	return &EbpfMap{
 		Type:       MapType(binary.LittleEndian.Uint32(data[:4])),
 		KeySize:    int(binary.LittleEndian.Uint32(data[4:])),
@@ -404,6 +418,7 @@ func NewMapFromExistingMapByPath(path string) (*EbpfMap, error) {
 }
 
 // If map type is Per-CPU based
+// 根据类型判断是否为Per-CPU变量
 func (m *EbpfMap) isPerCpu() bool {
 	return m.Type == MapTypePerCPUArray ||
 		m.Type == MapTypePerCPUHash ||
@@ -420,6 +435,7 @@ func (m *EbpfMap) setValueRealSize() error {
 		if err != nil {
 			return err
 		}
+		// 如果是Per-CPU变量，实际大小的计算方式，为何如此？
 		m.valueRealSize = ((m.ValueSize + 7) / 8) * 8 * numCpus
 	} else {
 		m.valueRealSize = m.ValueSize
@@ -429,14 +445,37 @@ func (m *EbpfMap) setValueRealSize() error {
 
 // Map elements part: lookup, update / delete / etc
 
-// Create creates map in kernel
+// Create creates map in kernel ; syscall创建map
 func (m *EbpfMap) Create() error {
 	var logBuf [errCodeBufferSize]byte
-
+	//type EbpfMap struct {
+	//	fd int
+	//	Name       string
+	//	Type       MapType
+	//	KeySize    int
+	//	ValueSize  int
+	//	MaxEntries int
+	//	Flags      int
+	//	InnerMapName string
+	//	InnerMapFd   int
+	//	PersistentPath string
+	//	valueRealSize int
+	//}
 	// These special map types always have 4 bytes length value
+	//
+	// func newMapFromElfSection(data []byte) (*EbpfMap, error) {
+	//	// 不包括fd/Name/InnerMapName/InnerMapFd/PersistentPath/valueRealSize字段
+	//	return &EbpfMap{
+	//		Type:       MapType(binary.LittleEndian.Uint32(data[:4])),
+	//		KeySize:    int(binary.LittleEndian.Uint32(data[4:])),
+	//		ValueSize:  int(binary.LittleEndian.Uint32(data[8:])),
+	//		MaxEntries: int(binary.LittleEndian.Uint32(data[12:])),
+	//		Flags:      int(binary.LittleEndian.Uint32(data[16:])),
+	//	}, nil
+	//}
 	if m.Type == MapTypeArrayOfMaps || m.Type == MapTypeHashOfMaps ||
 		m.Type == MapTypeProgArray || m.Type == MapTypePerfEventArray {
-
+		// 这里根据类型，重新校验ValueSize，应该在efi文件中已经有值
 		m.ValueSize = 4
 	}
 
@@ -456,10 +495,12 @@ func (m *EbpfMap) Create() error {
 
 	// LPM-Trie maps require BPF_F_NO_PREALLOC flag
 	if m.Type == MapTypeLPMTrie {
+		// 如果efi中值都合理，这里其实不会再进行调整
 		m.Flags |= bpfNoPrealloc
 	}
 
 	// Perform few sanity checks
+	// #define BPF_OBJ_NAME_LEN 16U
 	if len(m.Name) >= C.BPF_OBJ_NAME_LEN {
 		return fmt.Errorf("Map name '%s' is too long", m.Name)
 	}
@@ -469,7 +510,7 @@ func (m *EbpfMap) Create() error {
 	if m.ValueSize < 1 {
 		return fmt.Errorf("Invalid map '%s' value size(%d)", m.Name, m.ValueSize)
 	}
-
+	// 如果是percpu变量，需要重新计算变量大小得到实际大小
 	if err := m.setValueRealSize(); err != nil {
 		return err
 	}
